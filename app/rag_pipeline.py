@@ -835,11 +835,11 @@ def pick_pasal_for_hint(question: str, docs, compare_hint: str) -> str | None:
 
 PASAL_MENTION_RE = re.compile(
     r"""
-    \b(?:pasal|psl|ps)\s*                # "pasal" / "psl" / "ps" (opsional)
+    \b(?:pasal|psl|ps)\s*                # "pasal" / "psl" / "ps"
     (?P<num>\d+)\s*                      # nomor
-    (?:(?P<suf>[a-z])(?![a-z]))?\s*      # suffix: A/B dst (opsional, 1 huruf)
-    (?:ayat\s*(?:ke\s*)?\(?\s*(?P<ayat>\d+)\s*\)?)?\s*   # ayat (opsional)
-    (?:huruf\s*\(?\s*(?P<huruf>[a-z])\s*\)?)?            # huruf (opsional)
+    (?:(?P<suf>[a-z])(?![a-z]))?\s*      # suffix: A/B dst
+    (?:ayat\s*(?:ke\s*)?\(?\s*(?P<ayat>\d+)\s*\)?)?\s*   # ayat 
+    (?:huruf\s*\(?\s*(?P<huruf>[a-z])\s*\)?)?            # huruf
     \b
     """,
     re.IGNORECASE | re.VERBOSE
@@ -2815,7 +2815,7 @@ def enforce_alt_sanksi_block(answer: str, docs) -> str:
     if not has_sec5:
         answer = answer.rstrip() + "\n\n5) Sanksi alternatif:\n   - Sanksi alternatif tidak ditemukan di konteks.\n"
 
-    # Kalau tidak ada pasal alternatif -> biarkan safe text saja
+    # Kalau tidak ada pasal alternatif -> biarkan safe text
     if not alt_pasal:
         return re.sub(
             r"(?ms)^\s*5\s*[\).].*\Z",
@@ -3028,7 +3028,7 @@ def ask_question(question: str):
     if nomor_pasal:
         pasal_exact = extract_target_pasal_from_question(question) or nomor_pasal
 
-        # coba exact dulu (pasal + ayat)
+        # exact dulu (pasal + ayat)
         filter_pasal_list = base_filters_list + [{"Nomor_Pasal": pasal_exact}]
         results_main = safe_search(pasal_exact, k=5, filter={"$and": filter_pasal_list})
 
@@ -3040,7 +3040,7 @@ def ask_question(question: str):
         if not results_main:
             # fallback terakhir: cari di sumber/versi/tipe yang sama, lalu saring base pasalnya
             broad = safe_search(pasal_exact, k=12, filter={"$and": base_filters_list})
-            target_base = base_pasal(pasal_exact)  # sudah normalize
+            target_base = base_pasal(pasal_exact)
             results_main = [
                 d for d in broad
                 if base_pasal(d.metadata.get("Nomor_Pasal", "")) == target_base
@@ -3054,8 +3054,7 @@ def ask_question(question: str):
 
         inferred_sumber = results_main[0].metadata.get("Sumber")
         if inferred_sumber == "KUHP" and is_ask_sanksi(question):
-            rujukan_sanksi = target_pasal_full  # atau nomor_pasal
-            # opsional tapi bagus: tarik ulang chunk yg mengandung angka pidana/denda
+            rujukan_sanksi = target_pasal_full  
             extra = fetch_sanksi_same_pasal(vectordb, base_filters_list, base_pasal(target_pasal_full), k=6)
             results_main.extend(extra)
 
@@ -3224,7 +3223,7 @@ def ask_question(question: str):
 
     if ask_sanksi:
         if compare:
-            # jangan trim pakai target_pasal (biar opsi A/B tetap kebawa)
+            
             results = results[:MAX_DOCS]
         else:
             target_base = base_pasal(target_pasal)
