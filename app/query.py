@@ -147,10 +147,13 @@ TOPIC_TRIGGERS_KUHP = {
         "kalau tidak kasih", "akan dipukul", "dicegat", "diadang"
     ],
     "Tindak Pidana Penggelapan": [
-        "penggelapan", "menggelapkan", "gelapkan", "bawa lari", "penyalahgunaan amanah"
+        "penggelapan", "menggelapkan", "gelapkan", "bawa lari", "penyalahgunaan amanah",
+        "dipinjam", "pinjam", "meminjam", "meminjamkan", "dititip", "dititipkan", "titip", "menitipkan",
+        "sewa", "disewa", "dipercayakan", "diamanahkan",
+        "tidak dikembalikan", "tak dikembalikan", "dijual", "digadaikan", "gadai"
     ],
     "Tindak Pidana Perbuatan Curang": [
-        "penipuan", "menipu", "tipu", "penipu", "curang", "fraud", "scam", "pembohongan",
+        "penipuan", "menipu", "tipu", "curang", "fraud", "scam", "pembohongan",
         "bukti transfer palsu", "transfer palsu", "saldo tidak masuk", "marketplace", "rekening tujuan"
     ],
     "Tindak Pidana Terhadap Kepercayaan Dalam Menjalankan Usaha": [
@@ -319,8 +322,18 @@ KUHP_CORE_SIGNAL_RE = re.compile(
     r"\b(pencurian|mencuri|curi|penggelapan|menggelapkan|penipuan|menipu|tipu|"
     r"pemerasan|memeras|pengancaman|mengancam|penganiayaan|aniaya|"
     r"pelecehan|pencabulan|cabul|perkosa|persetubuhan|penghinaan|fitnah|"
-    r"pukul|memukul|dipukul|dorong|mendorong|tampar|tendang|luka|memar|berdarah|patah|tulang|cacat)\b",
+    r"pukul|memukul|dipukul|dorong|mendorong|tampar|tendang|luka|memar|berdarah|patah|tulang|cacat|"
+    r"dipinjam|pinjam|meminjam|meminjamkan|dititip|dititipkan|titip|menitipkan|sewa|disewa|dipercayakan|diamanahkan)\b",
     re.I
+)
+
+PENGGELAPAN_FACT_RE = re.compile(
+    r"\b(dipinjam|pinjam|meminjam|meminjamkan|dititip|dititipkan|titip|menitipkan|sewa|disewa|dipercayakan|diamanahkan|amanah)\b",
+    re.I,
+)
+PENGGELAPAN_MISUSE_RE = re.compile(
+    r"\b(dijual|jual|digadaikan|gadai|tidak dikembalikan|tak dikembalikan|belum dikembalikan|dibawa kabur|dikuasai)\b",
+    re.I,
 )
 
 ITE_ONLY_TOPICS = {
@@ -502,6 +515,8 @@ def parse_query(query: str):
     has_kuhp = bool(re.search(r"\bkuhp\b", query_lower))
     has_ite  = bool(re.search(r"\buu\s*ite\b|\bite\b", query_lower))
     strong_physical = bool(KUHP_PHYSICAL_STRONG_RE.search(query_lower))
+    has_penggelapan_fact = bool(PENGGELAPAN_FACT_RE.search(query_lower))
+    has_penggelapan_misuse = bool(PENGGELAPAN_MISUSE_RE.search(query_lower))
 
     q = query_lower or ""
     if ITE_SUBSTANTIVE_SIGNAL_RE.search(q):
@@ -530,6 +545,8 @@ def parse_query(query: str):
             sumber = "ITE"
         elif explicit_ite and ITE_CHANNEL_SIGNAL_RE.search(query_lower):
             sumber = "ITE"
+        elif has_penggelapan_fact and has_penggelapan_misuse and (not explicit_ite):
+            sumber = "KUHP"
         elif core_kuhp and strong_physical:
             sumber = "KUHP"
         elif core_kuhp and not explicit_ite:
@@ -553,6 +570,9 @@ def parse_query(query: str):
 
     if not nomor_pasal:
         topik_hukum_list = detect_topics(query, sumber)
+        if has_penggelapan_fact and has_penggelapan_misuse:
+            if "Tindak Pidana Penggelapan" not in topik_hukum_list:
+                topik_hukum_list.append("Tindak Pidana Penggelapan")
 
     if sumber is None and (not explicit_ite):
         # tanpa sinyal elektronik eksplisit, hindari topik ITE agar retrieval tidak nyasar

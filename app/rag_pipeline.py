@@ -165,12 +165,12 @@ RETRIEVAL_RULES = [
         "patterns": [
             r"\bmeraba\b", r"\bdiraba\b", r"\brabaan\b", r"\bdicolek\b",
             r"\bpelecehan\b", r"\bpelecehan seksual\b",
-            r"\bpencabulan\b", r"\bcabul\b"
+            r"\bpencabulan\b", r"\bpercabulan\b", r"\bcabul\b"
         ],
         "topics": ["Tindak Pidana Kesusilaan"],
-        "expand": "perbuatan cabul pencabulan kesusilaan tanpa persetujuan meraba rabaan",
+        "expand": "perbuatan cabul pencabulan percabulan kesusilaan tanpa persetujuan meraba rabaan",
         # supaya pasal “kontrasepsi/alat pencegah kehamilan” dan pasal lain yang nggak nyambung kebuang
-        "must_any": ["cabul", "pencabul", "kesusilaan", "persetubuhan", "perkosa"],
+        "must_any": ["cabul", "pencabul", "percabul", "kesusilaan", "persetubuhan", "perkosa"],
         "exclude_any": [
         "alat pencegah kehamilan", "kontrasepsi",
         "anak", "di bawah umur", "pingsan", "tidak berdaya",
@@ -359,7 +359,8 @@ HINT_ANCHOR_QUERY = {
 }
 
 PENGGELAPAN_FACT_RE = re.compile(
-    r"\b(dipinjam|pinjam|dititip|titip|sewa|disewa|diamanahkan|amanah|dipercayakan|diberi|gadai|digadaikan)\b",
+    r"\b(dipinjam|pinjam|meminjam|meminjamkan|dititip|dititipkan|titip|menitipkan|"
+    r"sewa|disewa|diamanahkan|amanah|dipercayakan|diberi|gadai|digadaikan)\b",
     re.I
 )
 PENCURIAN_FACT_RE = re.compile(
@@ -388,11 +389,11 @@ PENGANIAYAAN_FACT_RE = re.compile(
 )
 PENGANCAMAN_FACT_RE = re.compile(
     r"\b(ancam|mengancam|ancaman|habisin|habisi|bunuh|bakal gue bunuh|celaka|"
-    r"sakitin|saya bunuh|akan kubunuh|matiin|tusuk|gebuk|gebukin|bacok)\b",
+    r"sakitin|saya bunuh|akan kubunuh|matiin|tusuk|gebuk|gebukin|bacok|hajar|dihajar)\b",
     re.I
 )
 PENIPUAN_FACT_RE = re.compile(
-    r"\b(penipuan|menipu|tipu|penipu|tipu muslihat|rangkaian kebohongan|bukti transfer palsu|"
+    r"\b(penipuan|menipu|tipu|tipu muslihat|rangkaian kebohongan|bukti transfer palsu|"
     r"transfer palsu|rekening palsu|saldo tidak masuk|modus)\b",
     re.I
 )
@@ -449,16 +450,27 @@ KUHP_PHYSICAL_STRONG_RE = re.compile(
 NEGATED_THREAT_RE = re.compile(r"\b(tidak ada|tanpa)\s+ancaman(?:\s+kekerasan)?\b", re.I)
 SEXUAL_TERMS = ["persetubuhan", "perkosa", "bersetubuh"]
 LEGAL_QUERY_EXPANSIONS = [
-    (re.compile(r"\b(pelecehan|pelecehan seksual|diraba|rabaan|groping)\b", re.I), "perbuatan cabul pencabulan kesusilaan"),
+    (re.compile(r"\b(pelecehan|pelecehan seksual|diraba|rabaan|groping|pencabulan|percabulan|cabul)\b", re.I), "perbuatan cabul pencabulan percabulan kesusilaan"),
     (re.compile(r"\b(perkosa|pemerkosaan)\b", re.I), "persetubuhan dengan kekerasan"),
     (re.compile(r"\b(bukti transfer palsu|transfer palsu|saldo tidak masuk|marketplace|scam)\b", re.I), "penipuan tipu muslihat rangkaian kata bohong"),
     (re.compile(r"\b(sebar foto|sebar video|viralkan|ancam sebar)\b", re.I), "pengancaman pemerasan"),
     (re.compile(r"\b(akun palsu|impersonasi|menyamar|mengatasnamakan|identitas palsu|seolah-olah)\b", re.I), "Pasal 35 manipulasi informasi elektronik dokumen elektronik otentik"),
 ]
 
+COMMON_LEGAL_TYPO_REPLACEMENTS = [
+    (re.compile(r"\bpencabalan\b", re.I), "pencabulan"),
+]
+
+def normalize_common_legal_typos(text: str) -> str:
+    # Koreksi typo umum istilah hukum yang sering muncul di pertanyaan.
+    out = text or ""
+    for pat, repl in COMMON_LEGAL_TYPO_REPLACEMENTS:
+        out = pat.sub(repl, out)
+    return out
+
 def normalized_question_for_match(question: str) -> str:
     # Normalisasi pertanyaan agar mudah dicocokkan.
-    q = (question or "").strip()
+    q = normalize_common_legal_typos((question or "")).strip()
     if not q:
         return ""
     extras = []
@@ -476,7 +488,7 @@ def detect_compare_hint(question: str) -> str | None:
     ql = normalized_question_for_match(question)
 
     # hanya aktif untuk pasangan pencurian vs penggelapan
-    if not re.search(r"\b(pencuri|pencurian|mencuri|curi|nyolong|maling|jambret|copet|rampas|penggelap|penggelapan|gelap|gelapkan)\b", ql):
+    if not re.search(r"\b(pencuri|pencurian|mencuri|curi|nyolong|maling|jambret|copet|rampas|penggelap|penggelapan|gelap|gelapkan|dipinjam|pinjam|meminjam|meminjamkan|dititip|dititipkan|titip|sewa|disewa)\b", ql):
         # lanjut ke pasangan lain
         pass
     else:
@@ -498,11 +510,19 @@ def detect_compare_hint(question: str) -> str | None:
     has_penghinaan_term = bool(re.search(r"\b(pencemaran|nama baik|fitnah|penghinaan|menghina|hinaan|menuduh|tuduh|reputasi|kehormatan)\b", ql)) or bool(PENGHINAAN_FACT_RE.search(ql))
     has_pengancaman_term = bool(re.search(r"\b(ancam|mengancam|ancaman|pengancaman)\b", ql)) or bool(PENGANCAMAN_FACT_RE.search(ql))
     if has_penghinaan_term:
-        has_penghinaan_fact = bool(re.search(r"\b(pencemaran|nama baik|fitnah|menuduh|tuduh|reputasi|kehormatan|postingan|unggahan)\b", ql))
+        has_penghinaan_fact = bool(re.search(
+            r"\b(pencemaran|nama baik|fitnah|penghinaan|menghina|hinaan|menuduh|tuduh|"
+            r"reputasi|kehormatan|postingan|unggahan|kamu penipu|dia penipu)\b",
+            ql
+        ))
         has_pengancaman_fact = bool(PENGANCAMAN_FACT_RE.search(ql))
         if NEGATED_THREAT_RE.search(ql):
             has_pengancaman_fact = False
 
+        # Jika dua unsur sama-sama ada, prioritaskan pengancaman sebagai delik utama
+        # karena ada ancaman kekerasan/menakut-nakuti yang eksplisit.
+        if has_penghinaan_fact and has_pengancaman_fact:
+            return "PENGANCAMAN"
         if has_penghinaan_fact and not has_pengancaman_fact:
             return "PENGHINAAN"
         if has_penghinaan_fact and has_pengancaman_term:
@@ -533,7 +553,7 @@ def detect_compare_hint(question: str) -> str | None:
         return "PENGANCAMAN"
 
     # pasangan penipuan vs pemerasan
-    has_penipuan_term = bool(re.search(r"\b(penipuan|menipu|tipu|penipu)\b", ql)) or bool(PENIPUAN_FACT_RE.search(ql))
+    has_penipuan_term = bool(re.search(r"\b(penipuan|menipu|tipu)\b", ql)) or bool(PENIPUAN_FACT_RE.search(ql))
     if not (has_penipuan_term or has_pemerasan_term):
         return None
 
@@ -794,6 +814,11 @@ def pick_pasal_for_hint(question: str, docs, compare_hint: str) -> str | None:
         for d in (docs or []):
             if base_pasal(d.metadata.get("Nomor_Pasal", "")) == "Pasal 482":
                 return normalize_pasal_ref(d.metadata.get("Nomor_Pasal", "")) or (d.metadata.get("Nomor_Pasal") or "").strip()
+    if compare_hint == "PENGHINAAN":
+        for target in ("Pasal 433", "Pasal 436"):
+            for d in (docs or []):
+                if base_pasal(d.metadata.get("Nomor_Pasal", "")) == target:
+                    return normalize_pasal_ref(d.metadata.get("Nomor_Pasal", "")) or (d.metadata.get("Nomor_Pasal") or "").strip()
     # coba pakai heuristic pick_pasal_by_bab terlebih dulu
     cand = pick_pasal_by_bab(question, docs, bab)
     if cand and pasal_compatible_with_hint(cand, docs, compare_hint):
@@ -933,7 +958,17 @@ def is_ask_sanksi(q: str) -> bool:
     return False
 
 PASAL_ONLY_RE = re.compile(
-    r"\b(ini\s+pasal\s+apa|pasal\s+apa|kena\s+pasal\s+apa|pasal\s+berapa|pasal\s+mana)\b",
+    r"\b("
+    r"apa\s+pasal(?:nya)?|"
+    r"ini\s+pasal\s+apa|"
+    r"pasal\s+apa|"
+    r"pasal\s+untuk|"
+    r"kena\s+pasal\s+apa|"
+    r"pasal\s+berapa|"
+    r"pasal\s+mana|"
+    r"pasal\s+(?:uu\s*ite|ite|kuhp)\s+apa|"
+    r"pasal\s+apa\s+di\s+(?:uu\s*ite|ite|kuhp)"
+    r")\b",
     re.I,
 )
 
@@ -955,6 +990,19 @@ def infer_kuhp_anchor_from_facts(question: str) -> str | None:
         return "Pasal 433"
     if has_kasar:
         return "Pasal 436"
+
+    # Kesusilaan: pencabulan/pelecehan fisik.
+    if re.search(r"\b(cabul|pencabulan|percabulan|pelecehan|meraba|diraba|rabaan|dicolek)\b", ql):
+        has_child_or_unconscious = bool(re.search(r"\b(anak|di bawah umur|pingsan|tidak berdaya)\b", ql))
+        has_luka_berat = bool(re.search(r"\b(luka berat|tulang patah|patah|cacat)\b", ql))
+        has_mati = bool(re.search(r"\b(meninggal|mati|tewas)\b", ql))
+        if has_mati:
+            return "Pasal 416 ayat (2)"
+        if has_luka_berat:
+            return "Pasal 416 ayat (1)"
+        if has_child_or_unconscious:
+            return "Pasal 415"
+        return "Pasal 414"
 
     # Pemerasan diprioritaskan jika ada pemaksaan menyerahkan barang/uang dengan ancaman.
     if PEMERASAN_FORCE_FACT_RE.search(ql) and (THREAT_CONDITIONAL_RE.search(ql) or PENGANCAMAN_FACT_RE.search(ql)):
@@ -1005,6 +1053,9 @@ def get_fallback_bab_for_base_pasal(pb: str) -> str:
     fallback_bab = {
         "Pasal 29": "Perbuatan Yang Dilarang",
         "Pasal 35": "Perbuatan Yang Dilarang",
+        "Pasal 414": "Tindak Pidana Kesusilaan",
+        "Pasal 415": "Tindak Pidana Kesusilaan",
+        "Pasal 416": "Tindak Pidana Kesusilaan",
         "Pasal 482": "Tindak Pidana Pemerasan Dan Pengancaman",
         "Pasal 483": "Tindak Pidana Pemerasan Dan Pengancaman",
         "Pasal 433": "Tindak Pidana Penghinaan",
@@ -1029,6 +1080,9 @@ def build_pasal_intro_answer(question: str, docs, pasal: str) -> str | None:
     pb = base_pasal(pasal_norm)
     bab = get_bab_for_pasal(docs, pasal_norm) or get_fallback_bab_for_base_pasal(pb)
     label_override = {
+        "Pasal 414": "PERBUATAN CABUL",
+        "Pasal 415": "PERBUATAN CABUL (ANAK/PINGSAN)",
+        "Pasal 416": "PERBUATAN CABUL BERAKIBAT BERAT",
         "Pasal 482": "PEMERASAN",
         "Pasal 483": "PENGANCAMAN",
         "Pasal 433": "PENCEMARAN/PENGHINAAN",
@@ -1065,6 +1119,13 @@ def build_pasal_intro_answer(question: str, docs, pasal: str) -> str | None:
         reason = "karena ada pengambilan barang milik orang lain tanpa hak."
     elif bab == "Tindak Pidana Penggelapan":
         reason = "karena barang sebelumnya berada dalam penguasaan pelaku secara sah lalu dikuasai tanpa hak."
+    elif bab == "Tindak Pidana Kesusilaan":
+        if pb == "Pasal 416":
+            reason = "karena perbuatan cabul menimbulkan akibat berat (luka berat atau kematian)."
+        elif pb == "Pasal 415" or re.search(r"\b(anak|di bawah umur|pingsan|tidak berdaya)\b", ql):
+            reason = "karena perbuatan cabul dilakukan terhadap anak atau orang pingsan/tidak berdaya."
+        else:
+            reason = "karena terdapat perbuatan cabul terhadap orang lain."
     elif bab == "Perbuatan Yang Dilarang":
         reason = "karena unsur perbuatan terjadi melalui informasi/dokumen/sistem elektronik."
 
@@ -1081,7 +1142,13 @@ def build_pasal_only_answer(question: str, docs) -> str | None:
     # Bangun jawaban pasal singkat.
     if not docs:
         return None
-    forced = infer_kuhp_anchor_from_facts(question)
+    sumber_set = {
+        (d.metadata.get("Sumber") or "").strip().upper()
+        for d in (docs or [])
+        if (d.metadata.get("Sumber") or "").strip()
+    }
+    # Anchor KUHP berbasis fakta hanya dipakai jika konteksnya murni KUHP.
+    forced = infer_kuhp_anchor_from_facts(question) if ("KUHP" in sumber_set and "ITE" not in sumber_set) else None
     pasal = forced or pick_anchor_pasal_by_priority(question, docs)
     if not pasal or pasal == "-":
         return None
@@ -1560,6 +1627,32 @@ def retrieve_topic_docs(
     scored_all = _filter_exclude(scored_all, exclude_terms, question)
     scored_filtered = _filter_must_any(scored_all, must_terms)
 
+    # Jika rule punya must_terms tetapi hasil kosong, coba tarik ulang dengan query keyword terarah.
+    if not scored_filtered and must_terms:
+        retry_queries = []
+        q_norm = normalized_question_for_match(question)
+        retry_queries.append((question + " " + " ".join(must_terms)).strip())
+        if q_norm and q_norm != (question or "").lower():
+            retry_queries.append((q_norm + " " + " ".join(must_terms)).strip())
+        retry_queries = list(dict.fromkeys(retry_queries))
+
+        scored_retry = []
+        if topics:
+            k_retry = 10 if compare else 12
+            for topik in topics:
+                where = {"$and": base_filters_list + [{"Judul_Bab": topik}]}
+                scored_retry.extend(_collect_scored(retry_queries, where, k=k_retry))
+        else:
+            where = {"$and": base_filters_list}
+            scored_retry.extend(_collect_scored(retry_queries, where, k=12))
+
+        scored_retry = _dedupe_scored(scored_retry)
+        scored_retry = _filter_noise(scored_retry)
+        scored_retry = _filter_exclude(scored_retry, exclude_terms, question)
+        scored_retry = _filter_must_any(scored_retry, must_terms)
+        if scored_retry:
+            scored_filtered = scored_retry
+
     if not scored_filtered:
         scored_filtered = scored_all
 
@@ -1742,6 +1835,7 @@ def doc_priority(d, question: str):
     manipulation_signal = bool(ITE_MANIPULASI_FACT_RE.search(ql))
     extortion_signal = bool(PEMERASAN_FACT_RE.search(ql))
     ask_sanksi_flag = is_ask_sanksi(question)
+    sexual_query_signal = bool(re.search(r"\b(cabul|pencabulan|percabulan|pelecehan|meraba|diraba|rabaan|dicolek)\b", ql))
 
     score = 0
 
@@ -1782,6 +1876,10 @@ def doc_priority(d, question: str):
         score -= 15
 
     pasal = base_pasal(d.metadata.get("Nomor_Pasal",""))
+
+    # Hindari salah pilih pasal perjudian saat user tanya pencabulan/pelecehan.
+    if sexual_query_signal and re.search(r"\b(judi|perjudian|main judi)\b", txt):
+        score -= 180
 
     if pasal == "Pasal 29":
         if re.search(r"\b(ancam|mengancam|ancaman|hajar|bunuh|habisin|babak belur|tusuk|gebuk|gebukin|bacok|menakut|takut|kekerasan)\b", ql):
@@ -1909,6 +2007,19 @@ def doc_priority(d, question: str):
     if bab == "Tindak Pidana Kesusilaan":
         if re.search(r"\b(cabul|pencabulan|pelecehan|meraba|diraba|rabaan)\b", ql) and "perbuatan cabul" in txt:
             score += 30
+        if sexual_query_signal:
+            if pasal == "Pasal 414":
+                score += 70
+            elif pasal == "Pasal 415":
+                if re.search(r"\b(anak|di bawah umur|pingsan|tidak berdaya)\b", ql):
+                    score += 60
+                else:
+                    score += 40
+            elif pasal == "Pasal 416":
+                if re.search(r"\b(luka\s+berat|patah|tulang|cacat|meninggal|mati|tewas)\b", ql):
+                    score += 55
+                else:
+                    score += 20
         if re.search(r"\b(cabul|pencabulan|pelecehan|meraba|diraba|rabaan|perkosa|persetubuh)\b", ql):
             if "alat pencegah kehamilan" in txt or "kontrasepsi" in txt:
                 score -= 45
@@ -2826,6 +2937,7 @@ def find_bad_pasals(answer: str, docs) -> list[str]:
 
 def ask_question(question: str):
     # Jalankan pipeline RAG utama untuk menjawab pertanyaan.
+    question = normalize_common_legal_typos(question or "")
     nomor_pasal, sumber, versi, tipe, topik_hukum_list, minta_pasal_lain = parse_query(question)
     rujukan_sanksi = "-"
     versi = versi or 1
@@ -2838,7 +2950,7 @@ def ask_question(question: str):
     has_core_kuhp_signal = bool(re.search(
         r"\b(pencurian|mencuri|penggelapan|penipuan|menipu|pemerasan|memeras|"
         r"pengancaman|mengancam|penganiayaan|aniaya|pencabulan|cabul|pelecehan|"
-        r"perkosa|persetubuh|penghinaan|fitnah)\b",
+        r"perkosa|persetubuh|penghinaan|fitnah|dipinjam|pinjam|meminjam|meminjamkan|dititip|dititipkan|titip|sewa|disewa)\b",
         ql
     ))
     compare_hint_guess = detect_compare_hint(question) if is_compare_question(question) else None
@@ -2855,10 +2967,23 @@ def ask_question(question: str):
     if sumber is None and has_core_kuhp_signal and not has_ite_signal:
         sumber = "KUHP"
 
+    # Kasus penggelapan offline: barang awalnya dikuasai pelaku secara sah lalu disalahgunakan.
+    if (
+        (sumber is None or sumber == "KUHP")
+        and (not has_ite_signal)
+        and PENGGELAPAN_FACT_RE.search(ql)
+        and re.search(r"\b(dijual|jual|digadaikan|gadai|tidak dikembalikan|tak dikembalikan|belum dikembalikan|dibawa kabur|dikuasai)\b", ql)
+    ):
+        sumber = "KUHP"
+        minta_pasal_lain = False
+        if "Tindak Pidana Penggelapan" not in topik_hukum_list:
+            topik_hukum_list.append("Tindak Pidana Penggelapan")
+
     if (not looks_online(question)) and re.search(r"\b(meraba|diraba|rabaan|dicolek|pelecehan|pencabulan|cabul)\b", ql):
         sumber = "KUHP"
 
-    if (not looks_online(question) or not has_ite_signal) and re.search(
+    # Fallback KUHP hanya jika tidak ada sinyal ITE eksplisit.
+    if (not explicit_ite_word) and (not has_ite_signal) and re.search(
         r"\b(penganiaya|penganiayaan|aniaya|pukul|memukul|dorong|mendorong|memar|luka|cedera|"
         r"ancam|mengancam|ancaman|habisin|pencurian|mencuri|penggelapan|penipuan|menipu|pemerasan|memeras)\b",
         ql
@@ -3209,7 +3334,7 @@ def ask_question(question: str):
 
 
     # Mode topik + "pasal apa" tanpa sanksi jawaban deterministik ringkas.
-    if (not compare) and (not ask_sanksi) and (not nomor_pasal) and is_ask_pasal_only(question):
+    if (not compare) and (not ask_sanksi) and is_ask_pasal_only(question):
         pasal_only = build_pasal_only_answer(question, results)
         if pasal_only:
             pasal_only = clean_garbage_tokens(pasal_only)
